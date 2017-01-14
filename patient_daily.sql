@@ -533,3 +533,10 @@ BRRI Financial Report
 
 Patient Daily List
 - http://41.89.94.14:8080/openmrs/module/reporting/datasets/sqlDataSetEditor.form?uuid=f4c40476-02e0-437e-bc9f-830f4476c117
+
+
+
+
+Financial Report Design : f6aa5cdc-a48b-4e7c-84ac-7a43a0aebdba
+
+reporting/reports/reportEditor.form?uuid=f6aa5cdc-a48b-4e7c-84ac-7a43a0aebdba
