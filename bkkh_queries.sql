@@ -596,8 +596,12 @@ MYELOMENINGOCELE closures?concepts: 164271, 164275, 164302, 164300, 164301, 1643
 -- ----------------------------------------------- Hydrocephalus Only --------------------------------------------------------
 
 -- -------------------------------------------# Children seen --------------------------------------------------------------------
-
-SELECT person_id, encounter_date, location,
+SELECT COALESCE(min(jan_jun),0) AS "jan_jun" , COALESCE(min(jul_dec),0) AS jul_dec, COALESCE(min(total),0) AS total FROM(
+SELECT sum(IF(c.quarter in (1,2), 1, 0)) AS "jan_jun",
+sum(IF(c.quarter in (3,4), 1, 0)) AS "jul_dec",
+COUNT(c.person_id) as "total"
+FROM
+(SELECT person_id, birthdate, datediff(encounter_date, birthdate) div 365.25 as age, encounter_date, quarter(encounter_date) as quarter, location,encounter_id,
 IF(dx1 IN (115140, 117470, 117471, 118437, 122148, 122149, 122782, 129291, 132515, 136237, 138371, 143924, 
 144543, 145477, 148470, 150017, 153812, 158433, 163858), "Hydrocephalus", IF(dx1 IN (112213, 112417, 112418, 112833, 112833, 115831, 116204, 116205, 119941, 119943, 120774, 120775, 122136, 124838, 126203, 126204, 126205, 126206,
 126207, 126208, 134353, 134356, 136236, 138367, 138368, 138382, 143237, 143722, 143723, 144092, 152477, 157506, 158090, 163820, 134353, 134353
@@ -615,6 +619,7 @@ select
 d.patient_id as person_id, 
 d.encounter_id, 
 d.visit_id,
+d.birthdate,
 d.location,
 date(d.encounter_datetime) as encounter_date,
 trim(IF(ROUND ((LENGTH(d.diagnosis)- LENGTH(REPLACE(d.diagnosis, "|", "") )) / LENGTH("|"))>=0, SUBSTRING_INDEX(d.diagnosis,'|',1), '')) AS dx1,
@@ -622,8 +627,9 @@ trim(IF(ROUND ((LENGTH(d.diagnosis)- LENGTH(REPLACE(d.diagnosis, "|", "") )) / L
 trim(IF(ROUND ((LENGTH(d.diagnosis)- LENGTH(REPLACE(d.diagnosis, "|", "") )) / LENGTH("|"))>=2, SUBSTRING_INDEX(d.diagnosis,'|',-1), '')) as dx3
 from
 (
-select e.patient_id, e.encounter_id, group_concat(o.value_coded order by obs_id separator '|') as diagnosis, e.visit_id, e.encounter_datetime, e.location_id as location 
+select e.patient_id, p.birthdate, e.encounter_id, group_concat(o.value_coded order by obs_id separator '|') as diagnosis, e.visit_id, e.encounter_datetime, e.location_id as location 
 from encounter e 
+inner join person p on e.patient_id = p.person_id and p.voided=0
 inner join obs o on o.person_id=e.patient_id and o.encounter_id = e.encounter_id
 inner join (
 select encounter_type_id, uuid, name from encounter_type where 
@@ -633,13 +639,19 @@ where o.concept_id in (6042)
 group by e.encounter_id
 ) d
 ) diagnosis
-HAVING (dx1 = "Hydrocephalus" OR dx2 = "Hydrocephalus" OR dx3 = "Hydrocephalus") AND (dx1 <> "SB" AND dx2 <> "SB" AND dx3 <>"SB")
-
+HAVING (dx1 = "Hydrocephalus" OR dx2 = "Hydrocephalus" OR dx3 = "Hydrocephalus") AND (dx1 <> "SB" AND dx2 <> "SB" AND dx3 <>"SB") AND age < 15
+) c
+group by quarter
+) t
 
 -- ------------------------------------------ # Children new in program --------------------------------------------------------------
-
-
-SELECT person_id, encounter_date, location,diagnosis.encounter_id,visit_type,
+SELECT COALESCE(min(jan_jun),0) AS "jan_jun" , COALESCE(min(jul_dec),0) AS jul_dec, COALESCE(min(total),0) AS total FROM(
+SELECT sum(IF(c.quarter in (1,2), 1, 0)) AS "jan_jun",
+sum(IF(c.quarter in (3,4), 1, 0)) AS "jul_dec",
+COUNT(c.person_id) as "total"
+FROM
+(
+SELECT person_id, birthdate, datediff(encounter_date, birthdate) div 365.25 as age, encounter_date,diagnosis.encounter_id,visit_type, quarter(encounter_date) as quarter, location,
 IF(dx1 IN (115140, 117470, 117471, 118437, 122148, 122149, 122782, 129291, 132515, 136237, 138371, 143924, 
 144543, 145477, 148470, 150017, 153812, 158433, 163858), "Hydrocephalus", IF(dx1 IN (112213, 112417, 112418, 112833, 112833, 115831, 116204, 116205, 119941, 119943, 120774, 120775, 122136, 124838, 126203, 126204, 126205, 126206,
 126207, 126208, 134353, 134356, 136236, 138367, 138368, 138382, 143237, 143722, 143723, 144092, 152477, 157506, 158090, 163820, 134353, 134353
@@ -656,6 +668,7 @@ FROM (
 select 
 d.patient_id as person_id, 
 d.encounter_id, 
+d.birthdate,
 d.visit_id,
 d.location,
 date(d.encounter_datetime) as encounter_date,
@@ -664,8 +677,9 @@ trim(IF(ROUND ((LENGTH(d.diagnosis)- LENGTH(REPLACE(d.diagnosis, "|", "") )) / L
 trim(IF(ROUND ((LENGTH(d.diagnosis)- LENGTH(REPLACE(d.diagnosis, "|", "") )) / LENGTH("|"))>=2, SUBSTRING_INDEX(d.diagnosis,'|',-1), '')) as dx3
 from
 (
-select e.patient_id, e.encounter_id, group_concat(o.value_coded order by obs_id separator '|') as diagnosis, e.visit_id, e.encounter_datetime, e.location_id as location 
+select e.patient_id, p.birthdate, e.encounter_id, group_concat(o.value_coded order by obs_id separator '|') as diagnosis, e.visit_id, e.encounter_datetime, e.location_id as location 
 from encounter e 
+inner join person p on e.patient_id = p.person_id and p.voided=0
 inner join obs o on o.person_id=e.patient_id and o.encounter_id = e.encounter_id
 inner join (
 select encounter_type_id, uuid, name from encounter_type where 
@@ -687,12 +701,19 @@ select encounter_type_id, uuid, name from encounter_type where
 ) etype on etype.encounter_type_id = e.encounter_type
 where o.concept_id in (164181)
 group by e.encounter_id) initial on initial.encounter_id = diagnosis.encounter_id
-HAVING (dx1 = "Hydrocephalus" OR dx2 = "Hydrocephalus" OR dx3 = "Hydrocephalus") AND (dx1 <> "SB" AND dx2 <> "SB" AND dx3 <>"SB") and visit_type="Initial"
-
-
+HAVING (dx1 = "Hydrocephalus" OR dx2 = "Hydrocephalus" OR dx3 = "Hydrocephalus") AND (dx1 <> "SB" AND dx2 <> "SB" AND dx3 <>"SB") and visit_type="Initial" AND age < 15 
+) c
+group by quarter
+) t
 
 -- ------------------------------------------ # hydrocephalus operations ---------------------------------------------------------------
-select e.patient_id, e.encounter_id, e.encounter_type, e.encounter_datetime, e.location_id, o.concept_id, o.value_coded, p.birthdate, 
+SELECT COALESCE(min(jan_jun),0) AS "jan_jun" , COALESCE(min(jul_dec),0) AS jul_dec, COALESCE(min(total),0) AS total FROM(
+SELECT sum(IF(c.quarter in (1,2), 1, 0)) AS "jan_jun",
+sum(IF(c.quarter in (3,4), 1, 0)) AS "jul_dec",
+COUNT(c.patient_id) as "total"
+FROM
+(
+select e.patient_id, e.encounter_id, e.encounter_type, e.encounter_datetime, quarter(encounter_datetime) as quarter, e.location_id, o.concept_id, o.value_coded, p.birthdate, 
 datediff(curdate(), p.birthdate) div 365.25 as age
 from encounter e
 inner join person p on p.person_id = e.patient_id and p.voided=0
@@ -703,6 +724,9 @@ select encounter_type_id, uuid, name from encounter_type where
 inner join obs o on e.encounter_id=o.encounter_id and o.concept_id = 1651 and o.value_coded in (164267,164310,164305, 164270, 164285, 164287, 164306, 164309, 164272, 164308, 164268, 164314, 164317,
 164312, 164286, 164295, 164270, 164262, 164262, 164291, 164284, 164273, 164303, 164281, 164277, 164318, 164313, 164265, 164293, 164261, 164285,
 164274, 164283, 164316, 164292, 164264, 164288, 164289, 164280, 164263, 164278, 164282, 164299, 164294, 164311, 164297, 164296, 164049, 164320) 
+) c
+where  age < 15
+group by quarter) t
 
 -- -------------------------------------- --- # 1st time interventions: hydrocephalus operations ---------------------------------------------------------------------------------
 -- this is not yet implemented
@@ -720,8 +744,13 @@ inner join obs o on e.encounter_id=o.encounter_id and o.concept_id = 1651 and o.
 
 
 -- ---------------------------------------------- # Shunt procedures (total) -------------------------------------------------------------------
-
-select e.patient_id, e.encounter_id, e.encounter_type, e.encounter_datetime, e.location_id, o.concept_id, o.value_coded, p.birthdate, 
+SELECT COALESCE(min(jan_jun),0) AS "jan_jun" , COALESCE(min(jul_dec),0) AS jul_dec, COALESCE(min(total),0) AS total FROM(
+SELECT sum(IF(c.quarter in (1,2), 1, 0)) AS "jan_jun",
+sum(IF(c.quarter in (3,4), 1, 0)) AS "jul_dec",
+COUNT(c.patient_id) as "total"
+FROM
+(
+select e.patient_id, e.encounter_id, e.encounter_type, e.encounter_datetime, quarter(encounter_datetime) as quarter, e.location_id, o.concept_id, o.value_coded, p.birthdate, 
 datediff(curdate(), p.birthdate) div 365.25 as age
 from encounter e
 inner join person p on p.person_id = e.patient_id and p.voided=0
@@ -732,12 +761,19 @@ select encounter_type_id, uuid, name from encounter_type where
 inner join obs o on e.encounter_id=o.encounter_id and o.concept_id = 1651 and o.value_coded in (164267,164310,164305, 164270, 164285, 164287, 164306, 164309, 164272, 164308, 164268, 164314, 164317,
 164312, 164286, 164295, 164270, 164262, 164262, 164291, 164284, 164273, 164303, 164281, 164277, 164318, 164313, 164265, 164293, 164261, 164285,
 164274, 164283, 164316, 164292, 164264, 164288, 164289, 164280, 164263, 164278, 164282, 164299, 164294, 164311, 164297, 164296) 
-
+) c
+where  age < 15
+group by quarter) t
 
 -- ---------------------------------------------- # Shunt procedures (revisions) -------------------------------------------------------------------
 -- how is the overlap between revisions and total handled?
-
-select e.patient_id, e.encounter_id, e.encounter_type, e.encounter_datetime, e.location_id, o.concept_id, o.value_coded, p.birthdate, 
+SELECT COALESCE(min(jan_jun),0) AS "jan_jun" , COALESCE(min(jul_dec),0) AS jul_dec, COALESCE(min(total),0) AS total FROM(
+SELECT sum(IF(c.quarter in (1,2), 1, 0)) AS "jan_jun",
+sum(IF(c.quarter in (3,4), 1, 0)) AS "jul_dec",
+COUNT(c.patient_id) as "total"
+FROM
+(
+select e.patient_id, e.encounter_id, e.encounter_type, e.encounter_datetime, quarter(encounter_datetime) as quarter, e.location_id, o.concept_id, o.value_coded, p.birthdate, 
 datediff(curdate(), p.birthdate) div 365.25 as age
 from encounter e
 inner join person p on p.person_id = e.patient_id and p.voided=0
@@ -747,11 +783,19 @@ select encounter_type_id, uuid, name from encounter_type where
 ) etype on etype.encounter_type_id = e.encounter_type
 inner join obs o on e.encounter_id=o.encounter_id and o.concept_id = 1651 and o.value_coded in (164267, 164310, 164305, 164285, 164314, 164295, 164270, 164262, 164262, 
 164277, 164318, 164285, 164280, 164294, 164311, 164297, 164296) 
+) c
+where  age < 15
+group by quarter) t
 
 
 -- ---------------------------------------------- # ETV procedures  -------------------------------------------------------------------
-
-select e.patient_id, e.encounter_id, e.encounter_type, e.encounter_datetime, e.location_id, o.concept_id, o.value_coded, p.birthdate, 
+SELECT COALESCE(min(jan_jun),0) AS "jan_jun" , COALESCE(min(jul_dec),0) AS jul_dec, COALESCE(min(total),0) AS total FROM(
+SELECT sum(IF(c.quarter in (1,2), 1, 0)) AS "jan_jun",
+sum(IF(c.quarter in (3,4), 1, 0)) AS "jul_dec",
+COUNT(c.patient_id) as "total"
+FROM
+(
+select e.patient_id, e.encounter_id, e.encounter_type, e.encounter_datetime, quarter(encounter_datetime) as quarter, e.location_id, o.concept_id, o.value_coded, p.birthdate, 
 datediff(curdate(), p.birthdate) div 365.25 as age
 from encounter e
 inner join person p on p.person_id = e.patient_id and p.voided=0
@@ -760,12 +804,18 @@ select encounter_type_id, uuid, name from encounter_type where
     uuid in('f4be29e3-9713-4e3c-ad97-7136ce8768b6')
 ) etype on etype.encounter_type_id = e.encounter_type
 inner join obs o on e.encounter_id=o.encounter_id and o.concept_id = 1651 and o.value_coded =164049
-
+) c
+where  age < 15
+group by quarter) t
 -- ======================================================= spina Bifida reports =====================================================
 
 -- -------------------------------------------# Children seen --------------------------------------------------------------------
 
-SELECT person_id, encounter_date, location,
+SELECT sum(IF(c.quarter in (1,2), 1, 0)) AS "jan_jun",
+sum(IF(c.quarter in (3,4), 1, 0)) AS "jul_dec",
+COUNT(c.encounter_id) as "total"
+FROM
+(SELECT person_id, encounter_date, location, birthdate, datediff(encounter_date, birthdate) div 365.25 as age, quarter(encounter_date) as quarter,encounter_id,
 IF(dx1 IN (115140, 117470, 117471, 118437, 122148, 122149, 122782, 129291, 132515, 136237, 138371, 143924, 
 144543, 145477, 148470, 150017, 153812, 158433, 163858), "Hydrocephalus", IF(dx1 IN (112213, 112417, 112418, 112833, 112833, 115831, 116204, 116205, 119941, 119943, 120774, 120775, 122136, 124838, 126203, 126204, 126205, 126206,
 126207, 126208, 134353, 134356, 136236, 138367, 138368, 138382, 143237, 143722, 143723, 144092, 152477, 157506, 158090, 163820, 134353, 134353
@@ -782,6 +832,7 @@ FROM (
 select 
 d.patient_id as person_id, 
 d.encounter_id, 
+d.birthdate,
 d.visit_id,
 d.location,
 date(d.encounter_datetime) as encounter_date,
@@ -790,8 +841,9 @@ trim(IF(ROUND ((LENGTH(d.diagnosis)- LENGTH(REPLACE(d.diagnosis, "|", "") )) / L
 trim(IF(ROUND ((LENGTH(d.diagnosis)- LENGTH(REPLACE(d.diagnosis, "|", "") )) / LENGTH("|"))>=2, SUBSTRING_INDEX(d.diagnosis,'|',-1), '')) as dx3
 from
 (
-select e.patient_id, e.encounter_id, group_concat(o.value_coded order by obs_id separator '|') as diagnosis, e.visit_id, e.encounter_datetime, e.location_id as location 
+select e.patient_id, p.birthdate, e.encounter_id, group_concat(o.value_coded order by obs_id separator '|') as diagnosis, e.visit_id, e.encounter_datetime, e.location_id as location 
 from encounter e 
+inner join person p on e.patient_id = p.person_id and p.voided=0
 inner join obs o on o.person_id=e.patient_id and o.encounter_id = e.encounter_id
 inner join (
 select encounter_type_id, uuid, name from encounter_type where 
@@ -801,14 +853,18 @@ where o.concept_id in (6042)
 group by e.encounter_id
 ) d
 ) diagnosis
-HAVING (dx1 = "SB" OR dx2 = "SB" OR dx3 = "SB")
-
-
+HAVING (dx1 = "SB" OR dx2 = "SB" OR dx3 = "SB") AND age < 15
+) c
+group by quarter
 
 -- ------------------------------------------ # Children new in program --------------------------------------------------------------
 
-
-SELECT person_id, encounter_date, location,diagnosis.encounter_id,visit_type,
+SELECT sum(IF(c.quarter in (1,2), 1, 0)) AS "jan_jun",
+sum(IF(c.quarter in (3,4), 1, 0)) AS "jul_dec",
+COUNT(c.encounter_id) as "total"
+FROM
+(
+SELECT person_id, encounter_date, location,diagnosis.encounter_id,visit_type, birthdate, datediff(encounter_date, birthdate) div 365.25 as age, quarter(encounter_date) as quarter,
 IF(dx1 IN (115140, 117470, 117471, 118437, 122148, 122149, 122782, 129291, 132515, 136237, 138371, 143924, 
 144543, 145477, 148470, 150017, 153812, 158433, 163858), "Hydrocephalus", IF(dx1 IN (112213, 112417, 112418, 112833, 112833, 115831, 116204, 116205, 119941, 119943, 120774, 120775, 122136, 124838, 126203, 126204, 126205, 126206,
 126207, 126208, 134353, 134356, 136236, 138367, 138368, 138382, 143237, 143722, 143723, 144092, 152477, 157506, 158090, 163820, 134353, 134353
@@ -825,6 +881,7 @@ FROM (
 select 
 d.patient_id as person_id, 
 d.encounter_id, 
+d.birthdate,
 d.visit_id,
 d.location,
 date(d.encounter_datetime) as encounter_date,
@@ -833,8 +890,9 @@ trim(IF(ROUND ((LENGTH(d.diagnosis)- LENGTH(REPLACE(d.diagnosis, "|", "") )) / L
 trim(IF(ROUND ((LENGTH(d.diagnosis)- LENGTH(REPLACE(d.diagnosis, "|", "") )) / LENGTH("|"))>=2, SUBSTRING_INDEX(d.diagnosis,'|',-1), '')) as dx3
 from
 (
-select e.patient_id, e.encounter_id, group_concat(o.value_coded order by obs_id separator '|') as diagnosis, e.visit_id, e.encounter_datetime, e.location_id as location 
+select e.patient_id, p.birthdate, e.encounter_id, group_concat(o.value_coded order by obs_id separator '|') as diagnosis, e.visit_id, e.encounter_datetime, e.location_id as location 
 from encounter e 
+inner join person p on e.patient_id = p.person_id and p.voided=0
 inner join obs o on o.person_id=e.patient_id and o.encounter_id = e.encounter_id
 inner join (
 select encounter_type_id, uuid, name from encounter_type where 
@@ -856,10 +914,131 @@ select encounter_type_id, uuid, name from encounter_type where
 ) etype on etype.encounter_type_id = e.encounter_type
 where o.concept_id in (164181)
 group by e.encounter_id) initial on initial.encounter_id = diagnosis.encounter_id
-HAVING (dx1 = "SB" OR dx2 = "SB" OR dx3 = "SB") and visit_type="Initial"
+HAVING (dx1 = "SB" OR dx2 = "SB" OR dx3 = "SB") and visit_type="Initial" AND age < 15
+) c
+group by quarter
 
+-- ------------------------------------------------- Followup visits -----------------------------------------------------------
 
+-- ----------------------------------------------------- Hydrocephalus ---------------------------------------------------------
+SELECT sum(IF(c.quarter in (1,2), 1, 0)) AS "JAN-JUNE",
+sum(IF(c.quarter in (3,4), 1, 0)) AS "JUL-DEC",
+COUNT(c.person_id) as "Total"
+FROM
+(
+SELECT person_id, birthdate, datediff(encounter_date, birthdate) div 365.25 as age, encounter_date,diagnosis.encounter_id,visit_type, quarter(encounter_date) as quarter, location,
+IF(dx1 IN (115140, 117470, 117471, 118437, 122148, 122149, 122782, 129291, 132515, 136237, 138371, 143924, 
+144543, 145477, 148470, 150017, 153812, 158433, 163858), "Hydrocephalus", IF(dx1 IN (112213, 112417, 112418, 112833, 112833, 115831, 116204, 116205, 119941, 119943, 120774, 120775, 122136, 124838, 126203, 126204, 126205, 126206,
+126207, 126208, 134353, 134356, 136236, 138367, 138368, 138382, 143237, 143722, 143723, 144092, 152477, 157506, 158090, 163820, 134353, 134353
+),"SB", "")) AS dx1,
+IF(dx2 IN (115140, 117470, 117471, 118437, 122148, 122149, 122782, 129291, 132515, 136237, 138371, 143924, 
+144543, 145477, 148470, 150017, 153812, 158433, 163858), "Hydrocephalus", IF(dx2 IN (112213, 112417, 112418, 112833, 112833, 115831, 116204, 116205, 119941, 119943, 120774, 120775, 122136, 124838, 126203, 126204, 126205, 126206,
+126207, 126208, 134353, 134356, 136236, 138367, 138368, 138382, 143237, 143722, 143723, 144092, 152477, 157506, 158090, 163820, 134353, 134353
+),"SB", "")) AS dx2,
+IF(dx3 IN (115140, 117470, 117471, 118437, 122148, 122149, 122782, 129291, 132515, 136237, 138371, 143924, 
+144543, 145477, 148470, 150017, 153812, 158433, 163858), "Hydrocephalus", IF(dx3 IN (112213, 112417, 112418, 112833, 112833, 115831, 116204, 116205, 119941, 119943, 120774, 120775, 122136, 124838, 126203, 126204, 126205, 126206,
+126207, 126208, 134353, 134356, 136236, 138367, 138368, 138382, 143237, 143722, 143723, 144092, 152477, 157506, 158090, 163820, 134353, 134353
+),"SB", "")) AS dx3
+FROM (
+select 
+d.patient_id as person_id, 
+d.encounter_id, 
+d.birthdate,
+d.visit_id,
+d.location,
+date(d.encounter_datetime) as encounter_date,
+trim(IF(ROUND ((LENGTH(d.diagnosis)- LENGTH(REPLACE(d.diagnosis, "|", "") )) / LENGTH("|"))>=0, SUBSTRING_INDEX(d.diagnosis,'|',1), '')) AS dx1,
+trim(IF(ROUND ((LENGTH(d.diagnosis)- LENGTH(REPLACE(d.diagnosis, "|", "") )) / LENGTH("|"))>=1, SUBSTRING_INDEX(SUBSTRING_INDEX(d.diagnosis,'|',2),'|',-1), '')) as dx2,
+trim(IF(ROUND ((LENGTH(d.diagnosis)- LENGTH(REPLACE(d.diagnosis, "|", "") )) / LENGTH("|"))>=2, SUBSTRING_INDEX(d.diagnosis,'|',-1), '')) as dx3
+from
+(
+select e.patient_id, p.birthdate, e.encounter_id, group_concat(o.value_coded order by obs_id separator '|') as diagnosis, e.visit_id, e.encounter_datetime, e.location_id as location 
+from encounter e 
+inner join person p on e.patient_id = p.person_id and p.voided=0
+inner join obs o on o.person_id=e.patient_id and o.encounter_id = e.encounter_id
+inner join (
+select encounter_type_id, uuid, name from encounter_type where 
+    uuid in('4d0b20e6-9bb1-4504-bb76-24486387ca7f')
+) etype on etype.encounter_type_id = e.encounter_type
+where o.concept_id in (6042)
+group by e.encounter_id
+) d
+) diagnosis
+inner join (
+select  
+e.encounter_id, 
+(CASE o.value_coded WHEN 164180 THEN "Initial" WHEN 160530 THEN "Followup" ELSE "None"  END) AS visit_type
+from encounter e 
+inner join obs o on o.person_id=e.patient_id and o.encounter_id = e.encounter_id
+inner join (
+select encounter_type_id, uuid, name from encounter_type where 
+    uuid in('4d0b20e6-9bb1-4504-bb76-24486387ca7f')
+) etype on etype.encounter_type_id = e.encounter_type
+where o.concept_id in (164181)
+group by e.encounter_id) initial on initial.encounter_id = diagnosis.encounter_id
+HAVING (dx1 = "Hydrocephalus" OR dx2 = "Hydrocephalus" OR dx3 = "Hydrocephalus") AND (dx1 <> "SB" AND dx2 <> "SB" AND dx3 <>"SB") and visit_type="Followup" AND age < 15 
+) c
+group by quarter
+-- ---------------------------------------------------- Spina Bifida followup --------------------------------------------------
 
+SELECT sum(IF(c.quarter in (1,2), 1, 0)) AS "JAN-JUNE",
+sum(IF(c.quarter in (3,4), 1, 0)) AS "JUL-DEC",
+COUNT(c.encounter_id) as "Total"
+FROM
+(
+SELECT person_id, encounter_date, location,diagnosis.encounter_id,visit_type, birthdate, datediff(encounter_date, birthdate) div 365.25 as age, quarter(encounter_date) as quarter,
+IF(dx1 IN (115140, 117470, 117471, 118437, 122148, 122149, 122782, 129291, 132515, 136237, 138371, 143924, 
+144543, 145477, 148470, 150017, 153812, 158433, 163858), "Hydrocephalus", IF(dx1 IN (112213, 112417, 112418, 112833, 112833, 115831, 116204, 116205, 119941, 119943, 120774, 120775, 122136, 124838, 126203, 126204, 126205, 126206,
+126207, 126208, 134353, 134356, 136236, 138367, 138368, 138382, 143237, 143722, 143723, 144092, 152477, 157506, 158090, 163820, 134353, 134353
+),"SB", "")) AS dx1,
+IF(dx2 IN (115140, 117470, 117471, 118437, 122148, 122149, 122782, 129291, 132515, 136237, 138371, 143924, 
+144543, 145477, 148470, 150017, 153812, 158433, 163858), "Hydrocephalus", IF(dx2 IN (112213, 112417, 112418, 112833, 112833, 115831, 116204, 116205, 119941, 119943, 120774, 120775, 122136, 124838, 126203, 126204, 126205, 126206,
+126207, 126208, 134353, 134356, 136236, 138367, 138368, 138382, 143237, 143722, 143723, 144092, 152477, 157506, 158090, 163820, 134353, 134353
+),"SB", "")) AS dx2,
+IF(dx3 IN (115140, 117470, 117471, 118437, 122148, 122149, 122782, 129291, 132515, 136237, 138371, 143924, 
+144543, 145477, 148470, 150017, 153812, 158433, 163858), "Hydrocephalus", IF(dx3 IN (112213, 112417, 112418, 112833, 112833, 115831, 116204, 116205, 119941, 119943, 120774, 120775, 122136, 124838, 126203, 126204, 126205, 126206,
+126207, 126208, 134353, 134356, 136236, 138367, 138368, 138382, 143237, 143722, 143723, 144092, 152477, 157506, 158090, 163820, 134353, 134353
+),"SB", "")) AS dx3
+FROM (
+select 
+d.patient_id as person_id, 
+d.encounter_id, 
+d.birthdate,
+d.visit_id,
+d.location,
+date(d.encounter_datetime) as encounter_date,
+trim(IF(ROUND ((LENGTH(d.diagnosis)- LENGTH(REPLACE(d.diagnosis, "|", "") )) / LENGTH("|"))>=0, SUBSTRING_INDEX(d.diagnosis,'|',1), '')) AS dx1,
+trim(IF(ROUND ((LENGTH(d.diagnosis)- LENGTH(REPLACE(d.diagnosis, "|", "") )) / LENGTH("|"))>=1, SUBSTRING_INDEX(SUBSTRING_INDEX(d.diagnosis,'|',2),'|',-1), '')) as dx2,
+trim(IF(ROUND ((LENGTH(d.diagnosis)- LENGTH(REPLACE(d.diagnosis, "|", "") )) / LENGTH("|"))>=2, SUBSTRING_INDEX(d.diagnosis,'|',-1), '')) as dx3
+from
+(
+select e.patient_id, p.birthdate, e.encounter_id, group_concat(o.value_coded order by obs_id separator '|') as diagnosis, e.visit_id, e.encounter_datetime, e.location_id as location 
+from encounter e 
+inner join person p on e.patient_id = p.person_id and p.voided=0
+inner join obs o on o.person_id=e.patient_id and o.encounter_id = e.encounter_id
+inner join (
+select encounter_type_id, uuid, name from encounter_type where 
+    uuid in('4d0b20e6-9bb1-4504-bb76-24486387ca7f')
+) etype on etype.encounter_type_id = e.encounter_type
+where o.concept_id in (6042)
+group by e.encounter_id
+) d
+) diagnosis
+inner join (
+select  
+e.encounter_id, 
+(CASE o.value_coded WHEN 164180 THEN "Initial" WHEN 160530 THEN "Followup" ELSE "None"  END) AS visit_type
+from encounter e 
+inner join obs o on o.person_id=e.patient_id and o.encounter_id = e.encounter_id
+inner join (
+select encounter_type_id, uuid, name from encounter_type where 
+    uuid in('4d0b20e6-9bb1-4504-bb76-24486387ca7f')
+) etype on etype.encounter_type_id = e.encounter_type
+where o.concept_id in (164181)
+group by e.encounter_id) initial on initial.encounter_id = diagnosis.encounter_id
+HAVING (dx1 = "SB" OR dx2 = "SB" OR dx3 = "SB") and visit_type="Followup" AND age < 15
+) c
+group by quarter
 
 -- ===================================================== Report Descriptor ==========================================================
 
@@ -947,7 +1126,11 @@ BRRI Financial Report
 Patient Daily List
 - http://41.89.94.14:8080/openmrs/module/reporting/datasets/sqlDataSetEditor.form?uuid=f4c40476-02e0-437e-bc9f-830f4476c117
 
+new sql datasets
+http://41.89.94.14:8080/openmrs/module/reporting/datasets/sqlDataSetEditor.form?type=org.openmrs.module.reporting.dataset.definition.SqlDataSetDefinition
 
+BRRI statistical Report
+http://41.89.94.14:8080/openmrs/module/reporting/reports/reportEditor.form?uuid=fb444b99-4612-4d26-af2b-dae59a42a1d5#
 
 
 Financial Report Design : f6aa5cdc-a48b-4e7c-84ac-7a43a0aebdba
