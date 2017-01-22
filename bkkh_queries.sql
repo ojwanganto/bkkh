@@ -1129,6 +1129,203 @@ where o.concept_id in (6042, 5096, 164181, 164193, 164192, 164194, 164195 )
 group by e.encounter_id
 
 
+-- ------------------------------------------------------- Bladder / CIC Management -------------------------------------------------
+-- ------------------------------------------- # New children in CIC management follow-up ------------------------
+SELECT 
+COALESCE(SUM(boys_0_4_jan_jun),0) AS "boys_0_4_jan_jun", 
+COALESCE(SUM(boys_5_10_jan_jun),0) AS "boys_5_10_jan_jun", 
+COALESCE(SUM(boys_above_10_jan_jun),0) AS "boys_above_10_jan_jun",
+COALESCE(SUM(girls_0_4_jan_jun),0) AS "girls_0_4_jan_jun" , 
+COALESCE(SUM(girls_5_10_jan_jun),0) AS girls_5_10_jan_jun, 
+COALESCE(SUM(girls_above_15_jan_jun),0) AS girls_above_15_jan_jun,
+-- ----
+COALESCE(SUM(boys_0_4_jul_dec),0) AS "boys_0_4_jul_dec", 
+COALESCE(SUM(boys_5_10_jul_dec),0) AS "boys_5_10_jul_dec", 
+COALESCE(SUM(boys_above_10_jul_dec),0) AS "boys_above_10_jul_dec",
+COALESCE(SUM(girls_0_4_jul_dec),0) AS "girls_0_4_jul_dec" , 
+COALESCE(SUM(girls_5_10_jul_dec),0) AS girls_5_10_jul_dec, 
+COALESCE(SUM(girls_above_15_jul_dec),0) AS girls_above_15_jul_dec,
+-- totals
+COALESCE(SUM(boys_0_4_total),0) AS "boys_0_4_total", 
+COALESCE(SUM(boys_5_10_total),0) AS "boys_5_10_total", 
+COALESCE(SUM(boys_above_10_total),0) AS "boys_above_10_total",
+COALESCE(SUM(girls_0_4_total),0) AS "girls_0_4_total" , 
+COALESCE(SUM(girls_5_10_total),0) AS girls_5_10_total, 
+COALESCE(SUM(girls_above_10_total),0) AS girls_above_10_total
+FROM(
+SELECT 
+sum(IF(SUBSTRING_INDEX(c.quarter,'-',-1) in (1,2) and c.gender="M" and age <=4, 1, 0)) AS "boys_0_4_jan_jun",
+sum(IF(SUBSTRING_INDEX(c.quarter,'-',-1) in (1,2) and c.gender="M" and age between 5 and 10, 1, 0)) AS "boys_5_10_jan_jun",
+sum(IF(SUBSTRING_INDEX(c.quarter,'-',-1) in (1,2) and c.gender="M" and age > 10, 1, 0)) AS "boys_above_10_jan_jun",
+sum(IF(SUBSTRING_INDEX(c.quarter,'-',-1) in (1,2) and c.gender="F" and age <=4, 1, 0)) AS "girls_0_4_jan_jun",
+sum(IF(SUBSTRING_INDEX(c.quarter,'-',-1) in (1,2) and c.gender="F" and age between 5 and 10, 1, 0)) AS "girls_5_10_jan_jun",
+sum(IF(SUBSTRING_INDEX(c.quarter,'-',-1) in (1,2) and c.gender="F" and age > 10, 1, 0)) AS "girls_above_15_jan_jun",
+-- --
+sum(IF(SUBSTRING_INDEX(c.quarter,'-',-1) in (3,4) and c.gender="M" and age <=4, 1, 0)) AS "boys_0_4_jul_dec",
+sum(IF(SUBSTRING_INDEX(c.quarter,'-',-1) in (3,4) and c.gender="M" and age between 5 and 10, 1, 0)) AS "boys_5_10_jul_dec",
+sum(IF(SUBSTRING_INDEX(c.quarter,'-',-1) in (3,4) and c.gender="M" and age > 10, 1, 0)) AS "boys_above_10_jul_dec",
+sum(IF(SUBSTRING_INDEX(c.quarter,'-',-1) in (3,4) and c.gender="F" and age <=4, 1, 0)) AS "girls_0_4_jul_dec",
+sum(IF(SUBSTRING_INDEX(c.quarter,'-',-1) in (3,4) and c.gender="F" and age between 5 and 10, 1, 0)) AS "girls_5_10_jul_dec",
+sum(IF(SUBSTRING_INDEX(c.quarter,'-',-1) in (3,4) and c.gender="F" and age > 10, 1, 0)) AS "girls_above_15_jul_dec",
+-- --- totals
+sum(IF(c.gender="M" and age <=4, 1, 0)) AS "boys_0_4_total",
+sum(IF(c.gender="M" and age between 5 and 10, 1, 0)) AS "boys_5_10_total",
+sum(IF(c.gender="M" and age > 10, 1, 0)) AS "boys_above_10_total",
+sum(IF(c.gender="F" and age <=4, 1, 0)) AS "girls_0_4_total",
+sum(IF(c.gender="F" and age between 5 and 10, 1, 0)) AS "girls_5_10_total",
+sum(IF(c.gender="F" and age > 10, 1, 0)) AS "girls_above_10_total"
+FROM(
+select e.patient_id, p.birthdate,p.gender, e.encounter_id, p.dead, p.death_date,CONCAT(YEAR(e.encounter_datetime),"-",quarter(e.encounter_datetime)) as quarter,
+group_concat(if(o.concept_id=6042, o.value_coded, null) order by obs_id separator '|') as diagnosis,datediff(e.encounter_datetime, birthdate) div 365.25 as age, 
+max(if(o.concept_id=5096, date(o.value_datetime), null)) as tca_date,
+max(if(o.concept_id=164181, (CASE o.value_coded WHEN 164180 THEN "Initial" WHEN 160530 THEN "Followup" ELSE "None"  END), null)) as visit_type,
+max(if(o.concept_id=164192, (CASE o.value_coded WHEN 1065 THEN "Yes" WHEN 1066 THEN "No" WHEN 1067 THEN "Unknown" ELSE ""  END), null)) as CIC,
+max(if(o.concept_id=164193, (CASE o.value_coded WHEN 1065 THEN "Yes" WHEN 1066 THEN "No" WHEN 1067 THEN "Unknown" ELSE ""  END), null)) as CIC_New,
+max(if(o.concept_id=164194, (CASE o.value_coded WHEN 1065 THEN "Yes" WHEN 1066 THEN "No" WHEN 1067 THEN "Unknown" ELSE ""  END), null)) as Bowel_mgt,
+max(if(o.concept_id=164195, (CASE o.value_coded WHEN 1065 THEN "Yes" WHEN 1066 THEN "No" WHEN 1067 THEN "Unknown" ELSE ""  END), null)) as Bowel_mgt_New,
+e.visit_id, e.encounter_datetime, e.location_id as location
+from encounter e
+inner join person p on e.patient_id = p.person_id and p.voided=0
+inner join obs o on o.person_id=e.patient_id and o.encounter_id = e.encounter_id
+inner join (
+select encounter_type_id, uuid, name from encounter_type where
+    uuid in('4d0b20e6-9bb1-4504-bb76-24486387ca7f')
+) etype on etype.encounter_type_id = e.encounter_type
+where o.concept_id in (6042, 5096, 164181, 164193, 164192, 164194, 164195 )
+group by e.encounter_id
+) c
+WHERE CIC_New = "Yes" AND YEAR(encounter_datetime) = year('2017-01-01') and age < 15
+) t
+;
+
+-- --------------------------------------------- CIC New ---------------------------------------------------------------------------
+
+SELECT 
+COALESCE(SUM(boys_jan_jun),0) AS "boys_jan_jun", 
+COALESCE(SUM(girls_jan_jun),0) AS "girls_jan_jun", 
+COALESCE(SUM(boys_jul_dec),0) AS "boys_jul_dec",
+COALESCE(SUM(girls_jul_dec),0) AS "girls_jul_dec" , 
+COALESCE(SUM(girls_total),0) AS girls_total, 
+COALESCE(SUM(boys_total),0) AS boys_total 
+FROM(
+SELECT 
+sum(IF(SUBSTRING_INDEX(c.quarter,'-',-1) in (1,2) and c.gender="M", 1, 0)) AS "boys_jan_jun",
+sum(IF(SUBSTRING_INDEX(c.quarter,'-',-1) in (1,2) and c.gender="F", 1, 0)) AS "girls_jan_jun",
+sum(IF(SUBSTRING_INDEX(c.quarter,'-',-1) in (3,4) and c.gender="M", 1, 0)) AS "boys_jul_dec",
+sum(IF(SUBSTRING_INDEX(c.quarter,'-',-1) in (3,4) and c.gender="F", 1, 0)) AS "girls_jul_dec",
+sum(IF(c.gender="F" , 1, 0)) AS "girls_total",
+sum(IF(c.gender="M" , 1, 0)) AS "boys_total"
+FROM(
+select e.patient_id, p.birthdate,p.gender, e.encounter_id, p.dead, p.death_date,CONCAT(YEAR(e.encounter_datetime),"-",quarter(e.encounter_datetime)) as quarter,
+group_concat(if(o.concept_id=6042, o.value_coded, null) order by obs_id separator '|') as diagnosis,datediff(e.encounter_datetime, birthdate) div 365.25 as age, 
+max(if(o.concept_id=5096, date(o.value_datetime), null)) as tca_date,
+max(if(o.concept_id=164181, (CASE o.value_coded WHEN 164180 THEN "Initial" WHEN 160530 THEN "Followup" ELSE "None"  END), null)) as visit_type,
+max(if(o.concept_id=164192, (CASE o.value_coded WHEN 1065 THEN "Yes" WHEN 1066 THEN "No" WHEN 1067 THEN "Unknown" ELSE ""  END), null)) as CIC,
+max(if(o.concept_id=164193, (CASE o.value_coded WHEN 1065 THEN "Yes" WHEN 1066 THEN "No" WHEN 1067 THEN "Unknown" ELSE ""  END), null)) as CIC_New,
+max(if(o.concept_id=164194, (CASE o.value_coded WHEN 1065 THEN "Yes" WHEN 1066 THEN "No" WHEN 1067 THEN "Unknown" ELSE ""  END), null)) as Bowel_mgt,
+max(if(o.concept_id=164195, (CASE o.value_coded WHEN 1065 THEN "Yes" WHEN 1066 THEN "No" WHEN 1067 THEN "Unknown" ELSE ""  END), null)) as Bowel_mgt_New,
+e.visit_id, e.encounter_datetime, e.location_id as location
+from encounter e
+inner join person p on e.patient_id = p.person_id and p.voided=0
+inner join obs o on o.person_id=e.patient_id and o.encounter_id = e.encounter_id
+inner join (
+select encounter_type_id, uuid, name from encounter_type where
+    uuid in('4d0b20e6-9bb1-4504-bb76-24486387ca7f')
+) etype on etype.encounter_type_id = e.encounter_type
+where o.concept_id in (6042, 5096, 164181, 164193, 164192, 164194, 164195 )
+group by e.encounter_id
+) c
+WHERE CIC = "Yes" AND YEAR(encounter_datetime) = year('2016-01-01') and age < 15
+) t
+;
+
+
+-- --------------------------------------------------------- Bowel Management -------------------------------------------------------
+-- ==========================================                 New Visits      ========================================================
+
+SELECT 
+COALESCE(SUM(children_0_2_jan_jun),0) AS "children_0_2_jan_jun", 
+COALESCE(SUM(children_above_2_jan_jun),0) AS "children_above_2_jan_jun", 
+COALESCE(SUM(children_0_2_jul_dec),0) AS "children_0_2_jul_dec",
+COALESCE(SUM(children_above_2_jul_dec),0) AS "children_above_2_jul_dec" , 
+COALESCE(SUM(children_0_2_total),0) AS children_0_2_total, 
+COALESCE(SUM(children_above_2_total),0) AS children_above_2_total 
+FROM(
+SELECT 
+sum(IF(SUBSTRING_INDEX(c.quarter,'-',-1) in (1,2) and c.age <=2, 1, 0)) AS "children_0_2_jan_jun",
+sum(IF(SUBSTRING_INDEX(c.quarter,'-',-1) in (1,2) and c.age >2, 1, 0)) AS "children_above_2_jan_jun",
+sum(IF(SUBSTRING_INDEX(c.quarter,'-',-1) in (3,4) and c.age <=2, 1, 0)) AS "children_0_2_jul_dec",
+sum(IF(SUBSTRING_INDEX(c.quarter,'-',-1) in (3,4) and c.age >2, 1, 0)) AS "children_above_2_jul_dec",
+-- ------------------------
+sum(IF(c.age <=2, 1, 0)) AS "children_0_2_total",
+sum(IF(c.age >2, 1, 0)) AS "children_above_2_total"
+FROM(
+select e.patient_id, p.birthdate,p.gender, e.encounter_id, p.dead, p.death_date,CONCAT(YEAR(e.encounter_datetime),"-",quarter(e.encounter_datetime)) as quarter,
+group_concat(if(o.concept_id=6042, o.value_coded, null) order by obs_id separator '|') as diagnosis,datediff(e.encounter_datetime, birthdate) div 365.25 as age, 
+max(if(o.concept_id=5096, date(o.value_datetime), null)) as tca_date,
+max(if(o.concept_id=164181, (CASE o.value_coded WHEN 164180 THEN "Initial" WHEN 160530 THEN "Followup" ELSE "None"  END), null)) as visit_type,
+max(if(o.concept_id=164192, (CASE o.value_coded WHEN 1065 THEN "Yes" WHEN 1066 THEN "No" WHEN 1067 THEN "Unknown" ELSE ""  END), null)) as CIC,
+max(if(o.concept_id=164193, (CASE o.value_coded WHEN 1065 THEN "Yes" WHEN 1066 THEN "No" WHEN 1067 THEN "Unknown" ELSE ""  END), null)) as CIC_New,
+max(if(o.concept_id=164194, (CASE o.value_coded WHEN 1065 THEN "Yes" WHEN 1066 THEN "No" WHEN 1067 THEN "Unknown" ELSE ""  END), null)) as Bowel_mgt,
+max(if(o.concept_id=164195, (CASE o.value_coded WHEN 1065 THEN "Yes" WHEN 1066 THEN "No" WHEN 1067 THEN "Unknown" ELSE ""  END), null)) as Bowel_mgt_New,
+e.visit_id, e.encounter_datetime, e.location_id as location
+from encounter e
+inner join person p on e.patient_id = p.person_id and p.voided=0
+inner join obs o on o.person_id=e.patient_id and o.encounter_id = e.encounter_id
+inner join (
+select encounter_type_id, uuid, name from encounter_type where
+    uuid in('4d0b20e6-9bb1-4504-bb76-24486387ca7f')
+) etype on etype.encounter_type_id = e.encounter_type
+where o.concept_id in (6042, 5096, 164181, 164193, 164192, 164194, 164195 )
+group by e.encounter_id
+) c
+WHERE Bowel_mgt_New = "Yes" AND YEAR(encounter_datetime) = year('2017-01-01') and age < 15
+) t
+;
+
+
+-- ==========================================                 Bowel Management      ========================================================
+
+SELECT 
+COALESCE(SUM(children_0_2_jan_jun),0) AS "children_0_2_jan_jun", 
+COALESCE(SUM(children_above_2_jan_jun),0) AS "children_above_2_jan_jun", 
+COALESCE(SUM(children_0_2_jul_dec),0) AS "children_0_2_jul_dec",
+COALESCE(SUM(children_above_2_jul_dec),0) AS "children_above_2_jul_dec" , 
+COALESCE(SUM(children_0_2_total),0) AS children_0_2_total, 
+COALESCE(SUM(children_above_2_total),0) AS children_above_2_total 
+FROM(
+SELECT 
+sum(IF(SUBSTRING_INDEX(c.quarter,'-',-1) in (1,2) and c.age <=2, 1, 0)) AS "children_0_2_jan_jun",
+sum(IF(SUBSTRING_INDEX(c.quarter,'-',-1) in (1,2) and c.age >2, 1, 0)) AS "children_above_2_jan_jun",
+sum(IF(SUBSTRING_INDEX(c.quarter,'-',-1) in (3,4) and c.age <=2, 1, 0)) AS "children_0_2_jul_dec",
+sum(IF(SUBSTRING_INDEX(c.quarter,'-',-1) in (3,4) and c.age >2, 1, 0)) AS "children_above_2_jul_dec",
+-- ------------------------
+sum(IF(c.age <=2, 1, 0)) AS "children_0_2_total",
+sum(IF(c.age >2, 1, 0)) AS "children_above_2_total"
+FROM(
+select e.patient_id, p.birthdate,p.gender, e.encounter_id, p.dead, p.death_date,CONCAT(YEAR(e.encounter_datetime),"-",quarter(e.encounter_datetime)) as quarter,
+group_concat(if(o.concept_id=6042, o.value_coded, null) order by obs_id separator '|') as diagnosis,datediff(e.encounter_datetime, birthdate) div 365.25 as age, 
+max(if(o.concept_id=5096, date(o.value_datetime), null)) as tca_date,
+max(if(o.concept_id=164181, (CASE o.value_coded WHEN 164180 THEN "Initial" WHEN 160530 THEN "Followup" ELSE "None"  END), null)) as visit_type,
+max(if(o.concept_id=164192, (CASE o.value_coded WHEN 1065 THEN "Yes" WHEN 1066 THEN "No" WHEN 1067 THEN "Unknown" ELSE ""  END), null)) as CIC,
+max(if(o.concept_id=164193, (CASE o.value_coded WHEN 1065 THEN "Yes" WHEN 1066 THEN "No" WHEN 1067 THEN "Unknown" ELSE ""  END), null)) as CIC_New,
+max(if(o.concept_id=164194, (CASE o.value_coded WHEN 1065 THEN "Yes" WHEN 1066 THEN "No" WHEN 1067 THEN "Unknown" ELSE ""  END), null)) as Bowel_mgt,
+max(if(o.concept_id=164195, (CASE o.value_coded WHEN 1065 THEN "Yes" WHEN 1066 THEN "No" WHEN 1067 THEN "Unknown" ELSE ""  END), null)) as Bowel_mgt_New,
+e.visit_id, e.encounter_datetime, e.location_id as location
+from encounter e
+inner join person p on e.patient_id = p.person_id and p.voided=0
+inner join obs o on o.person_id=e.patient_id and o.encounter_id = e.encounter_id
+inner join (
+select encounter_type_id, uuid, name from encounter_type where
+    uuid in('4d0b20e6-9bb1-4504-bb76-24486387ca7f')
+) etype on etype.encounter_type_id = e.encounter_type
+where o.concept_id in (6042, 5096, 164181, 164193, 164192, 164194, 164195 )
+group by e.encounter_id
+) c
+WHERE Bowel_mgt = "Yes" AND YEAR(encounter_datetime) = year('2017-01-01') and age < 15
+) t
+;
+
 -- ===================================================== Report Descriptor ==========================================================
 
     {
